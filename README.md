@@ -7,7 +7,8 @@ messages and hand-made invoices with one system.
 - **Back office:** staff handle enquiries, bookings, quotations and invoices.
 - **Driver portal:** drivers record the condition of each vehicle before and after a trip.
 
-> **Status:** a working preview, not yet serving SL Tours' public domain. Launch waits on business decisions by SL Tours
+> **Status:** a working preview, deployed on a DigitalOcean droplet and not yet serving SL Tours' public domain
+> ([what running it there taught us](#deployment-and-lessons-learned)). Launch waits on business decisions by SL Tours
 > (live rates, booking terms, an email provider, a privacy review); see
 > [Owner decisions](docs/operations/OWNER_DECISIONS.md) and [Release readiness](docs/operations/RELEASE_READINESS.md).
 > This repository is a **curated snapshot**. Client-identifying details (a customer's name, the business street address
@@ -136,6 +137,31 @@ The suites cover:
 Browser journeys (`tools/journeys`) and a route smoke test (`tools/smoke/routes.sh`) run against a local stack. See the
 [testing guide](docs/testing/TESTING_GUIDE.md).
 
+## Deployment and lessons learned
+
+The preview runs on a single DigitalOcean droplet (1 vCPU, 1 GB RAM, Frankfurt) with the same Docker Compose stack as
+local development: Nginx, the Spring Boot API and PostgreSQL. A small real server exposed problems a laptop never
+shows. Each is written up in the [learning log](docs/learning/LOG.md):
+
+- **1 GB is not enough to compile Java and Node at once.** The first build on the droplet stalled with the kernel
+  swapping (`kswapd0` at about 22% CPU). Building one service at a time works around it; the planned fix is for CI to
+  build the images and the server only to pull them ([ADR-007](docs/architecture/ADR/ADR-007-build-images-in-ci.md)).
+- **Java sizes itself from the host unless told otherwise.** The kernel killed the API for running out of memory, so
+  it now has an explicit heap and a container memory limit, so an overrun restarts only the API container
+  (`docker-compose.yml`).
+- **Small servers start slowly.** The API took 79 seconds to start on the droplet, so its health check allows a
+  three-minute start period.
+- **Dependencies are part of the attack surface.** The first security scan found three CRITICAL Tomcat flaws, two of
+  them authentication bypasses, in libraries the code never names directly. They were fixed by upgrading and pinning
+  versions. A finding is accepted in `.trivyignore` only when the code cannot reach it, with a reason and an expiry
+  date. New CVEs keep being published: unchanged code that passed on 7 October failed on 15 October.
+- **Behind a proxy, every visitor looks like the proxy.** One person could have used up everyone's sign-in attempts.
+  Nginx now takes the visitor's address from `X-Forwarded-For`, but only when the request comes from the proxy.
+- **The status code matters, not just the page.** Missing pages said "Page not found" but answered HTTP 200; Nginx now
+  asks the API whether a page exists and returns a real 404.
+- **Test the rollback, not just the release.** The previous API version was started against the migrated database to
+  prove that going back needs no restore.
+
 ## Documentation
 
 | Area | Start here |
@@ -152,8 +178,8 @@ Browser journeys (`tools/journeys`) and a route smoke test (`tools/smoke/routes.
 - No payment gateway: payments are recorded and confirmed by staff.
 - No automatic email or WhatsApp notifications: staff share documents through prepared WhatsApp messages and links.
 - Sessions, rate limits and assistant conversations are held in memory, which suits a single server.
-- CI builds and tests every change; publishing images and automated deployment are planned
-  ([CI/CD](docs/operations/CI_CD_PIPELINE.md)).
+- CI builds and tests every change, but deploying to the droplet is still done by hand over SSH; publishing images and
+  automated deployment are planned ([CI/CD](docs/operations/CI_CD_PIPELINE.md)).
 
 ## Credits
 

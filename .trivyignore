@@ -4,3 +4,8 @@
 # Spring Framework XsltView remote code execution. Fixed only in Spring Framework 7 (Spring Boot 4). The API does not
 # use XsltView or any XSLT views; it serves JSON, PDF and DOCX only. Accepted 2026-10-07.
 CVE-2026-47884 exp:2027-01-31
+
+# Spring Framework Server-Sent Events stream corruption with view rendering. Fixed only in Spring Framework 7 (Spring
+# Boot 4); 6.2.19 is the latest 6.2 release. The API sends no Server-Sent Events and renders no views (no SseEmitter,
+# ResponseBodyEmitter or ModelAndView). Accepted 2026-10-15.
+CVE-2026-47890 exp:2027-01-31

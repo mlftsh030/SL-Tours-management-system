@@ -4,6 +4,9 @@ Status of the 7 October 2026 website review, as of 9 October 2026, on branch `fe
 below was implemented and verified on a local Docker stack. **Nothing has been deployed**: the preview droplet and
 sl-tours.com still run older code.
 
+> **Update, 15 October 2026:** this code now runs on the preview droplet and is on GitHub, where CI runs on every push.
+> sl-tours.com is unchanged. The release assessment below is kept as written on 9 October.
+
 How each status was established:
 
 - **Fixed:** changed in code, with a test that fails without the change where the defect was behavioural.

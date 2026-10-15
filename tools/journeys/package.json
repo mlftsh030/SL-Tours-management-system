@@ -16,5 +16,8 @@
   },
   "dependencies": {
     "puppeteer-core": "23.11.1"
+  },
+  "overrides": {
+    "basic-ftp": "^6.2.1"
   }
 }
