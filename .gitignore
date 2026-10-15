@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+target/
+.env
+.DS_Store
+*.log
+coverage/
+playwright-report/
+test-results/
+.idea/workspace.xml
+
+.env.*
+!.env.example
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
+
+# Local private uploads when the API runs outside Docker
+apps/api/data/
+
+# Database and media backups (tools/db/backup.sh) — never commit
+backups/
+
+# IDE settings
+.idea/
+
+# Editor swap files
+*.swp
+.*.swp

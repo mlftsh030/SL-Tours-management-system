@@ -1,0 +1,121 @@
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:true}
+
+spring:
+  application:
+    name: sl-tours-api
+  servlet:
+    multipart:
+      max-file-size: ${SLTOURS_MAX_UPLOAD_FILE:15MB}
+      max-request-size: ${SLTOURS_MAX_UPLOAD_REQUEST:100MB}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sltours}
+    username: ${SPRING_DATASOURCE_USERNAME:sltours}
+    password: ${SPRING_DATASOURCE_PASSWORD:sltours}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui
+
+sltours:
+  # Canonical links, Open Graph URLs and the sitemap always name this host, also on staging.
+  public-base-url: ${SLTOURS_PUBLIC_BASE_URL:https://sl-tours.com}
+  # Search indexing (SLTOURS_SEO_INDEXING): false keeps every page out of search results and hides the sitemap. Not set
+  # here on purpose: it defaults to false, and the production profile refuses to start unless it is set explicitly.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+  accounts:
+    # Base URL for email verification and password-reset links (no trailing slash).
+    link-base-url: ${SLTOURS_ACCOUNT_LINK_BASE_URL:${sltours.public-base-url}}
+  mail:
+    # none: verification and password-reset emails are not sent (the site says so); smtp: send through the server below.
+    provider: ${SLTOURS_MAIL_PROVIDER:none}
+    from: ${SLTOURS_MAIL_FROM:}
+    smtp:
+      host: ${SLTOURS_SMTP_HOST:}
+      port: ${SLTOURS_SMTP_PORT:587}
+      username: ${SLTOURS_SMTP_USERNAME:}
+      password: ${SLTOURS_SMTP_PASSWORD:}
+      starttls: ${SLTOURS_SMTP_STARTTLS:true}
+  security:
+    admin-username: ${SLTOURS_ADMIN_USERNAME:admin@sltours.local}
+    admin-password: ${SLTOURS_ADMIN_PASSWORD:change-me-in-env}
+    # Signed-in users are signed out after this much inactivity; background polling does not count.
+    idle-timeout: ${SLTOURS_IDLE_TIMEOUT:30m}
+  inspections:
+    # Default: a collection without safety defects waits for an administrator to approve the release.
+    collection-approval-required: ${SLTOURS_COLLECTION_APPROVAL_REQUIRED:true}
+    min-vehicle-photos: ${SLTOURS_INSPECTION_MIN_PHOTOS:4}
+    # How long before a trip starts the driver may collect the vehicle (e.g. 12h, 90m).
+    collection-opens-before: ${SLTOURS_COLLECTION_OPENS_BEFORE:12h}
+  billing:
+    # Customer document links: base URL (no trailing slash), default and maximum lifetime in days.
+    link-base-url: ${SLTOURS_DOCUMENT_LINK_BASE_URL:${sltours.public-base-url}}
+    link-days: ${SLTOURS_DOCUMENT_LINK_DAYS:14}
+    link-max-days: ${SLTOURS_DOCUMENT_LINK_MAX_DAYS:90}
+  pricing:
+    # Seeded sample rates are never shown as prices unless this is true (dev profile only).
+    allow-sample-rates: false
+  catalogue:
+    # Re-check periods per kind of information. Older figures are still shown, but plans treat them as unconfirmed.
+    freshness:
+      standard-price-days: ${SLTOURS_FRESHNESS_PRICE_DAYS:180}
+      promotional-price-days: ${SLTOURS_FRESHNESS_PROMOTION_DAYS:14}
+      extra-days: ${SLTOURS_FRESHNESS_EXTRA_DAYS:180}
+      opening-hours-days: ${SLTOURS_FRESHNESS_HOURS_DAYS:120}
+      session-days: ${SLTOURS_FRESHNESS_SESSION_DAYS:30}
+      participation-days: ${SLTOURS_FRESHNESS_PARTICIPATION_DAYS:365}
+  assistant:
+    # none (chat disabled; the day planner remains), anthropic (live), or mock (dev/test profiles only).
+    provider: ${SLTOURS_ASSISTANT_PROVIDER:none}
+    model: ${SLTOURS_ASSISTANT_MODEL:claude-sonnet-5-5}
+    api-key: ${SLTOURS_ASSISTANT_API_KEY:}
+    base-url: ${SLTOURS_ASSISTANT_BASE_URL:https://api.anthropic.com}
+    request-timeout: ${SLTOURS_ASSISTANT_REQUEST_TIMEOUT:20s}
+    turn-timeout: ${SLTOURS_ASSISTANT_TURN_TIMEOUT:45s}
+    max-output-tokens: ${SLTOURS_ASSISTANT_MAX_OUTPUT_TOKENS:900}
+    max-tool-rounds: 6
+    max-message-chars: 1000
+    max-turns-per-conversation: ${SLTOURS_ASSISTANT_MAX_TURNS:20}
+    messages-per-session-per-hour: ${SLTOURS_ASSISTANT_SESSION_HOURLY:30}
+    messages-per-address-per-hour: ${SLTOURS_ASSISTANT_ADDRESS_HOURLY:60}
+    max-active-conversations: ${SLTOURS_ASSISTANT_MAX_CONVERSATIONS:500}
+    conversation-idle-timeout: ${SLTOURS_ASSISTANT_IDLE_TIMEOUT:30m}
+    daily-model-request-limit: ${SLTOURS_ASSISTANT_DAILY_REQUESTS:2000}
+    # Spending controls. Live chat stays disabled until all four are set; use the provider's current price list.
+    input-usd-per-million-tokens: ${SLTOURS_ASSISTANT_INPUT_USD_PER_MTOK:}
+    output-usd-per-million-tokens: ${SLTOURS_ASSISTANT_OUTPUT_USD_PER_MTOK:}
+    daily-spend-limit-usd: ${SLTOURS_ASSISTANT_DAILY_LIMIT_USD:}
+    monthly-spend-limit-usd: ${SLTOURS_ASSISTANT_MONTHLY_LIMIT_USD:}
+  storage:
+    # Private uploads (inspection photos, selfies, driver documents). Mount a persistent Docker volume here.
+    local-root: ${SLTOURS_MEDIA_ROOT:./data/media}
+    max-image-bytes: ${SLTOURS_MAX_IMAGE_BYTES:10485760}
+    max-document-bytes: ${SLTOURS_MAX_DOCUMENT_BYTES:15728640}

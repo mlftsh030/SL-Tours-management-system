@@ -1,0 +1,6 @@
+# Accepted vulnerability findings. Each entry needs a reason and an expiry date; after that date the security check fails
+# again and the decision must be reviewed. See docs/operations/CI_CD_PIPELINE.md.
+
+# Spring Framework XsltView remote code execution. Fixed only in Spring Framework 7 (Spring Boot 4). The API does not
+# use XsltView or any XSLT views; it serves JSON, PDF and DOCX only. Accepted 2026-10-07.
+CVE-2026-47884 exp:2027-01-31

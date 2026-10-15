@@ -1,0 +1,20 @@
+{
+  "name": "sl-tours-journeys",
+  "private": true,
+  "type": "module",
+  "description": "Browser journey checks against a local SL Tours stack. See README.md.",
+  "scripts": {
+    "all": "node all.mjs",
+    "layout": "node layout.mjs",
+    "keyboard": "node keyboard.mjs",
+    "enquiries": "node enquiries.mjs",
+    "booking": "node booking.mjs",
+    "private-trip": "node privatetrip.mjs",
+    "accounts": "node accounts.mjs",
+    "translation": "node translation.mjs",
+    "reviews": "node reviews.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "23.11.1"
+  }
+}

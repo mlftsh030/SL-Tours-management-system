@@ -1,0 +1,103 @@
+services:
+  postgres:
+    # Restart after a crash, an out-of-memory kill or a server reboot (but not after `docker compose stop`).
+    restart: unless-stopped
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sltours}
+      POSTGRES_USER: ${POSTGRES_USER:-sltours}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sltours}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sltours} -d ${POSTGRES_DB:-sltours}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    restart: unless-stopped
+    build:
+      context: ./apps/api
+    # Memory budget for a 1 GB server. Without limits Java sizes itself from the host's
+    # RAM, and on 8 October 2026 the kernel killed it for running out of memory. The limit makes an overrun kill and
+    # restart this container only; ExitOnOutOfMemoryError makes Java exit (and restart) rather than limp on.
+    mem_limit: ${API_MEMORY_LIMIT:-640m}
+    healthcheck:
+      # Includes the database connection. Startup took 79 s on the droplet, hence the long start period.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    environment:
+      JAVA_TOOL_OPTIONS: ${API_JAVA_OPTIONS:--Xmx256m -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -XX:MaxDirectMemorySize=64m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/sltours}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-sltours}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-sltours}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SLTOURS_ADMIN_USERNAME: ${SLTOURS_ADMIN_USERNAME:-admin@sltours.local}
+      SLTOURS_ADMIN_PASSWORD: ${SLTOURS_ADMIN_PASSWORD:-change-me-in-env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      # Search indexing: blank or false keeps every page out of search results (staging). The production profile refuses
+      # to start unless this is true or false. Canonical links always use SLTOURS_PUBLIC_BASE_URL.
+      SLTOURS_SEO_INDEXING: ${SLTOURS_SEO_INDEXING:-}
+      SLTOURS_PUBLIC_BASE_URL: ${SLTOURS_PUBLIC_BASE_URL:-https://sl-tours.com}
+      SLTOURS_MEDIA_ROOT: /var/lib/sltours/media
+      SLTOURS_COLLECTION_APPROVAL_REQUIRED: ${SLTOURS_COLLECTION_APPROVAL_REQUIRED:-true}
+      SLTOURS_INSPECTION_MIN_PHOTOS: ${SLTOURS_INSPECTION_MIN_PHOTOS:-4}
+      SLTOURS_COLLECTION_OPENS_BEFORE: ${SLTOURS_COLLECTION_OPENS_BEFORE:-12h}
+      SLTOURS_DOCUMENT_LINK_BASE_URL: ${SLTOURS_DOCUMENT_LINK_BASE_URL:-http://localhost:8080}
+      SLTOURS_DOCUMENT_LINK_DAYS: ${SLTOURS_DOCUMENT_LINK_DAYS:-14}
+      SLTOURS_IDLE_TIMEOUT: ${SLTOURS_IDLE_TIMEOUT:-30m}
+      # Account emails (verification, password reset). Locally they go to Mailpit at http://localhost:8025 and never
+      # leave this machine; a deployment sets a real SMTP provider (see docs/operations/CUSTOMER_ACCOUNTS.md).
+      SLTOURS_MAIL_PROVIDER: ${SLTOURS_MAIL_PROVIDER:-smtp}
+      SLTOURS_MAIL_FROM: ${SLTOURS_MAIL_FROM:-SL Tours <no-reply@sltours.local>}
+      SLTOURS_SMTP_HOST: ${SLTOURS_SMTP_HOST:-mailpit}
+      SLTOURS_SMTP_PORT: ${SLTOURS_SMTP_PORT:-1025}
+      SLTOURS_SMTP_USERNAME: ${SLTOURS_SMTP_USERNAME:-}
+      SLTOURS_SMTP_PASSWORD: ${SLTOURS_SMTP_PASSWORD:-}
+      SLTOURS_SMTP_STARTTLS: ${SLTOURS_SMTP_STARTTLS:-false}
+      SLTOURS_ACCOUNT_LINK_BASE_URL: ${SLTOURS_ACCOUNT_LINK_BASE_URL:-http://localhost:8080}
+      # Planning assistant: disabled unless configured (see docs/operations/PLANNING_ASSISTANT.md).
+      SLTOURS_ASSISTANT_PROVIDER: ${SLTOURS_ASSISTANT_PROVIDER:-none}
+      SLTOURS_ASSISTANT_MODEL: ${SLTOURS_ASSISTANT_MODEL:-claude-sonnet-5-5}
+      SLTOURS_ASSISTANT_API_KEY: ${SLTOURS_ASSISTANT_API_KEY:-}
+      SLTOURS_ASSISTANT_INPUT_USD_PER_MTOK: ${SLTOURS_ASSISTANT_INPUT_USD_PER_MTOK:-}
+      SLTOURS_ASSISTANT_OUTPUT_USD_PER_MTOK: ${SLTOURS_ASSISTANT_OUTPUT_USD_PER_MTOK:-}
+      SLTOURS_ASSISTANT_DAILY_LIMIT_USD: ${SLTOURS_ASSISTANT_DAILY_LIMIT_USD:-}
+      SLTOURS_ASSISTANT_MONTHLY_LIMIT_USD: ${SLTOURS_ASSISTANT_MONTHLY_LIMIT_USD:-}
+    volumes:
+      # Private uploads: inspection photos, selfies, driver documents, vehicle and website images.
+      - media-data:/var/lib/sltours/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  # Local mail catcher: accepts every message and delivers none. Inbox at http://localhost:8025.
+  mailpit:
+    restart: unless-stopped
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  web:
+    restart: unless-stopped
+    build:
+      context: ./apps/web
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres-data:
+  media-data:

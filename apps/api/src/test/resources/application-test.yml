@@ -1,0 +1,16 @@
+sltours:
+  seo:
+    # Tests assert production SEO output; SeoIndexingTest covers staging (indexing off).
+    indexing: true
+  security:
+    admin-username: admin@test.local
+    admin-password: test-admin-password
+  pricing:
+    allow-sample-rates: true
+  inspections:
+    min-vehicle-photos: 4
+    # Fixtures schedule trips days ahead; CollectionTimingIntegrationTest checks the real window.
+    collection-opens-before: 3650d
+  assistant:
+    # The development mock exercises the full tool loop without credentials.
+    provider: mock

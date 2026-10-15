@@ -1,0 +1,7 @@
+# Local development only.
+sltours:
+  pricing:
+    # Seeded sample rates are displayed (clearly labelled) so the private-trip flow can be exercised.
+    allow-sample-rates: true
+  dev:
+    driver-password: ${SLTOURS_DEV_DRIVER_PASSWORD:driver-demo-pass}

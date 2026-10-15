@@ -1,0 +1,16 @@
+{
+  "name": "sl-tours-platform",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "web:dev": "npm --workspace @sltours/web run dev",
+    "web:build": "npm --workspace @sltours/web run build",
+    "web:test": "npm --workspace @sltours/web run test",
+    "api:test": "mvn -f apps/api/pom.xml test",
+    "api:run": "mvn -f apps/api/pom.xml spring-boot:run",
+    "test": "npm run web:test && npm run api:test"
+  }
+}
