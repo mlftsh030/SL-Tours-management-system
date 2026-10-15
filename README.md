@@ -1,13 +1,14 @@
 # SL Tours: booking and operations platform
 
-A web platform for SL Tours, a tour operator in Cape Town, South Africa. It replaces a static brochure website, WhatsApp
-messages and hand-made invoices with one system.
+A client-led booking and operations platform for SL Tours, a tour operator in Cape Town, South Africa.
+Built within **Tlokwa Digital Solutions** to connect the public website with enquiries, quotations, invoices,
+bookings, referrals and trip operations.
 
 - **Public website:** visitors find tours, request bookings and private trips, and plan a day out.
 - **Back office:** staff handle enquiries, bookings, quotations and invoices.
 - **Driver portal:** drivers record the condition of each vehicle before and after a trip.
 
-> **Status:** live for client review at **[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/explore)**,
+> **Status:** deployed for client review at **[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/)**,
 > running on a DigitalOcean droplet and tunnelled through the Tlokwa Digital domain
 > ([what running it there taught us](#deployment-and-lessons-learned)). It does not yet serve SL Tours' public domain,
 > sl-tours.com. Launch waits on business decisions by SL Tours
@@ -17,17 +18,47 @@ messages and hand-made invoices with one system.
 > and bank account number) have been replaced with placeholders. Commit IDs mentioned in the docs refer to the original
 > development repository.
 
-## Background
+## How the project came about
 
-The work started with SL Tours' online presence, from December 2024:
+My work with SL Tours started in **November 2024**, when the business had no online presence. I helped establish its
+website, SEO and Google Business Profile so people could find its services and get in touch. The static website was
+the first step. As the relationship grew, our conversations moved into the daily work of running the business.
 
-- a static website;
-- search metadata and Google Search Console verification;
-- WhatsApp, Google review and TripAdvisor links.
+Mr Liso approached me about the time spent creating invoices by hand. Trip details, services and prices had to be
+prepared, checked and sent for each customer. Changes meant editing the document again. Marketing brought another
+problem: keeping track of who referred a customer and what happened after that referral.
 
-Tours were booked through an external booking service, questions arrived by email and WhatsApp, prices were copied by
-hand across pages, and staff had no shared record of enquiries, vehicles or drivers. In October 2026 this platform was
-built to bring those workflows into one system while keeping the established SL Tours look.
+Those conversations shaped this system. I used SL Tours' existing invoice layout as a starting point so the documents
+would remain familiar. The aim was to reduce repeated typing, keep customer requests easier to follow and connect
+referral codes to actual bookings and recorded payments.
+
+The relationship began in November 2024; the earliest static-site commit in the original development history is from
+December 2024. The operations platform followed in October 2026. This curated repository contains the application
+snapshot; it does not contain the complete history of that earlier work.
+
+## Building around the client's work
+
+| Client need | System response | Intended benefit |
+|---|---|---|
+| Preparing quotations and invoices by hand | Reusable document layout, service lines, previews, PDF and Word output | Less time rebuilding documents and copying details |
+| Following a request across several conversations | Enquiries inbox, booking records and linked billing documents | A clearer record of the customer's request and its progress |
+| Understanding referred business | Partner reference codes, referral records and commission ledgers | Trace a referral through to a booking and its payment status |
+| Coordinating vehicles and drivers | Trip assignments, availability rules and collection/return inspections | Keep trip responsibilities and vehicle condition records together |
+| Keeping public tour information consistent | Database-backed catalogue with staff administration | Manage tour details and prices from the same source |
+
+These are the problems the software is designed to address. I have not yet measured time saved, increased bookings or
+revenue from the platform. Payments, vehicle release and commercial agreements still require the responsible people
+to make or confirm decisions.
+
+### My role and the Tlokwa connection
+
+I owned the work from client discussions and design through implementation, testing and deployment, using coding tools
+and AI assistance along the way. The [credits](#credits) describe that assistance and third-party material.
+
+SL Tours is a client project within Tlokwa Digital Solutions and the **first client to request this kind of tourism
+operations system**. It gives us a practical starting point for learning what small tourism businesses need beyond a
+website. Client review will help us understand what is useful, what needs simplifying and what could support another
+business. It is not yet evidence of a validated product for the wider tourism market.
 
 ## What it does
 
@@ -42,14 +73,14 @@ built to bring those workflows into one system while keeping the established SL 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  B[Browser<br/>React SPA] -- HTTPS --> E[TLS edge<br/>Caddy or Cloudflare Tunnel]
-  E --> W[web: Nginx<br/>static build · server-rendered SEO · /api proxy · rate limits]
-  W -- /api --> A[api: Spring Boot 3.5 / Java 21<br/>modular monolith]
-  A --> DB[(PostgreSQL 16<br/>26 Flyway migrations)]
-  A --> M[(Private media volume<br/>inspection photos · documents · PDFs)]
-  A -.-> S[SMTP provider]
-  A -.-> L[Anthropic API<br/>optional, off]
+flowchart TD
+  B["Browser: public, customer, staff, driver and partner views"] --> E["HTTPS edge: Cloudflare Tunnel or alternative Caddy setup"]
+  E --> W["Nginx: React build, page metadata and API proxy"]
+  W --> A["Java 21 and Spring Boot modular monolith"]
+  A --> DB[("PostgreSQL and Flyway")]
+  A --> M[("Private media volume")]
+  A -.-> S["SMTP provider"]
+  A -.-> L["Optional AI provider: disabled by default"]
 ```
 
 | Layer | Technology |
@@ -63,6 +94,22 @@ The API is one deployable application split into domain packages (`apps/api/src/
 The frontend is organised by feature (`apps/web/src/features/<area>/`). The reasoning behind the main choices is in the
 [architecture decision records](docs/architecture/ADR/README.md).
 
+## Main technical decisions
+
+| Decision | Why it fits this project | Trade-off |
+|---|---|---|
+| React, TypeScript and Vite | Reusable interfaces for public pages and several role-specific portals; typed forms and API interactions | Requires a build step and ongoing dependency maintenance |
+| Java 21 and Spring Boot as a modular monolith | Keep booking, billing and operations rules in one deployable application with domain boundaries | Package boundaries need discipline; the application scales as one unit |
+| PostgreSQL with Flyway | Relational records, transactions and database constraints suit bookings, assignments and financial documents; migrations make schema changes reviewable | Database changes need compatibility checks, backups and recovery planning |
+| Server-side pricing and billing | The browser cannot determine authoritative prices; issued documents retain their agreed values | Pricing rules and revisions need explicit business policies |
+| Database accounts and cookie sessions | Staff and customers can sign in without exposing reusable credentials in the frontend; CSRF protects session-based mutations | Sessions and sign-in limits are instance-local in the current design |
+| Nginx beside the API | Same-origin API calls and server-inserted page metadata support both authenticated workflows and search visibility | We operate the server and deployment rather than relying only on static hosting |
+| Private persistent media volume | Inspection photos and driver documents stay behind authorised API access without another storage service | Backups must include both database and media; multiple servers would need shared storage |
+
+The [decision records](docs/architecture/ADR/README.md) give the context and consequences. HTTP Basic was a foundation
+choice that has been superseded by session authentication. Building release images in CI and having the server pull
+them remains a proposal, separate from the existing CI checks.
+
 ## Engineering highlights
 
 - **The server owns every price.** Tour, private-trip and invoice totals are calculated in integer cents on the server;
@@ -72,11 +119,11 @@ The frontend is organised by feature (`apps/web/src/features/<area>/`). The reas
   to overlapping trips, even when two staff members confirm at the same moment
   (`apps/api/src/main/resources/db/migration/V9__fleet_assignments_inspections.sql`). A test confirms both requests
   concurrently and checks that only one succeeds.
-- **Financial records are immutable.** Issuing an invoice freezes everything printed on it. Invoice numbers are taken
-  under a database row lock, so they are never duplicated or reused (`billing/service/NumberAllocator.java`).
+- **Issued documents retain a snapshot.** Issuing an invoice freezes its printable contents. Invoice numbers are allocated
+  under a database row lock to prevent concurrent allocation of the same number (`billing/service/NumberAllocator.java`).
   Corrections are made by revision.
-- **Retries never create duplicates.** Every public form sends an idempotency key, so a retry after a lost response
-  returns the original record instead of creating a second one.
+- **Public forms support safe retries.** They send an idempotency key so retrying the same request after a lost response
+  can return the original record instead of creating a second one.
 - **Unverified facts are labelled, not hidden.** Attraction prices record their source, check date and validity
   period. Expired, conflicting or unpublished prices show as "not verified", and a day plan is said to fit a budget only
   when every cost is verified (`activities/service/ItineraryService.java`).
@@ -84,7 +131,7 @@ The frontend is organised by feature (`apps/web/src/features/<area>/`). The reas
   discount that did not come from those tools is replaced before the visitor sees it
   (`assistant/service/ReplyGuard.java`). Spending caps apply, and the assistant is off unless configured.
 - **Security model:**
-  - session cookies (HttpOnly, SameSite) and CSRF protection on every write;
+  - session cookies (HttpOnly, SameSite) and CSRF protection for session-based mutations;
   - default-deny URL rules and per-record ownership checks (another user's record behaves as missing);
   - uploads checked by content, not file name;
   - the production profile refuses unsafe settings at startup (`config/SecurityConfig.java`,
@@ -120,10 +167,14 @@ driver accounts. For a shared server, follow [Deployment](docs/operations/DEPLOY
 ```bash
 npm ci
 npm --workspace @sltours/web run typecheck
-npm --workspace @sltours/web run test     # 111 tests
+npm --workspace @sltours/web run test
 npm --workspace @sltours/web run build
-mvn -f apps/api/pom.xml verify            # 177 tests; integration tests use a throwaway PostgreSQL (Testcontainers, needs Docker)
+mvn -f apps/api/pom.xml verify            # integration tests use Testcontainers and need Docker
 ```
+
+Earlier verification of the development checkout reported **111 frontend tests and 177 API tests passing**. Those are
+recorded results, not a claim that tests were rerun for this README edit or proof of the deployed build. Use the
+commands above and the repository's [CI workflow](.github/workflows/ci.yml) to verify a checkout.
 
 The suites cover:
 
@@ -142,17 +193,17 @@ Browser journeys (`tools/journeys`) and a route smoke test (`tools/smoke/routes.
 ## Deployment and lessons learned
 
 The preview is live for SL Tours to review at
-[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/explore). It runs on a single DigitalOcean droplet
+[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/). It runs on a single DigitalOcean droplet
 (1 vCPU, 1 GB RAM, Frankfurt) with the same Docker Compose stack as local development, and reaches the internet
-through a Cloudflare Tunnel on the Tlokwa Digital domain:
+through a Cloudflare Tunnel on the Tlokwa Digital domain.
 
-```
-Browser ──HTTPS──▶ Cloudflare edge ──tunnel──▶ cloudflared (systemd service on the droplet)
-        ──HTTP──▶ 127.0.0.1:8080 web (Nginx) ──▶ api (Spring Boot) ──▶ postgres
-```
+The reported route is HTTPS to Cloudflare, through a native systemd `cloudflared` service to
+`http://127.0.0.1:8080`, then Nginx, the API and PostgreSQL. The tunnel's origin service uses **HTTP** because Nginx on
+that local port does not serve TLS. Public visitors still connect over HTTPS.
 
-The preview runs an earlier build than this snapshot. The redirects and real 404 pages described below are not
-deployed there yet; `tools/smoke/routes.sh https://sltours.tlokwadigital.com true` reports them as failing.
+The deployment notes record an earlier preview build than this snapshot. Do not assume every feature or fix here is
+live. This README update did not inspect the deployed image, migration version or effective configuration. Use the
+[route smoke test](tools/smoke/routes.sh) and deployment checks when assessing a release.
 
 ### Problem 1: the build froze
 
@@ -180,12 +231,12 @@ its heap and its other memory pools from the host's total RAM, not from what Pos
 **How it was solved.** In three layers:
 
 1. **Swap on the droplet.** Swap is disk space the kernel uses as overflow memory. A short spike, such as a build or
-   the API starting, now slows the server down instead of getting a process killed.
+   the API starting, can absorb some short spikes, at the cost of slower disk-backed memory; it does not guarantee protection from an out-of-memory kill.
 2. **A fixed memory budget for the API** in [docker-compose.yml](docker-compose.yml):
 
    | Setting | Why |
    |---|---|
-   | `mem_limit: 640m` | Caps the container, so an overrun kills and restarts the API alone, never PostgreSQL |
+   | `mem_limit: 640m` | Sets a container memory ceiling; host memory and PostgreSQL still need their own capacity checks |
    | `-Xmx256m` | A fixed heap instead of one sized from the host's RAM |
    | `-XX:MaxMetaspaceSize=192m` `-XX:ReservedCodeCacheSize=64m` `-XX:MaxDirectMemorySize=64m` `-Xss512k` | Caps the memory Java uses outside the heap: class data, compiled code, buffers and thread stacks |
    | `-XX:+UseSerialGC` | The garbage collector with the least memory overhead; it suits one vCPU and a small heap |
@@ -206,12 +257,14 @@ docker inspect -f '{{.State.OOMKilled}} {{.State.ExitCode}}' <api-container>   #
 ### Problem 3: HTTPS on a domain for client review
 
 **How it was solved.** `cloudflared` runs on the droplet as a systemd service. It opens an outbound connection to
-Cloudflare, so the website needs no inbound port. Cloudflare serves HTTPS for `sltours.tlokwadigital.com` and the
+Cloudflare, so the tunnel itself does not require an inbound web port. Cloudflare serves HTTPS for `sltours.tlokwadigital.com` and the
 tunnel forwards each request to `http://127.0.0.1:8080`, the `web` container.
 
-**What then broke: sign-in.** Behind the tunnel the API receives plain HTTP, so a sign-in or form POST from
-`https://sltours.tlokwadigital.com` looks cross-origin and is rejected. Adding that exact origin to
-`CORS_ALLOWED_ORIGINS` fixed sign-in.
+**What then broke: sign-in.** The browser showed a 403 for login, while the API container was still running. The origin setting needed to include
+`https://sltours.tlokwadigital.com`; adding that exact origin was part of the reported fix. The earlier tunnel also
+failed because its origin was set to HTTPS against an HTTP-only local port. These are separate configuration issues.
+A login 403 can also involve CSRF or access rules, so inspect the response and server logs before changing security
+settings. HTTP between a trusted local proxy and the API does not by itself make the browser request cross-origin.
 
 ### Other lessons
 
@@ -242,9 +295,11 @@ Each is written up in the [learning log](docs/learning/LOG.md).
 ## Known limitations
 
 - No payment gateway: payments are recorded and confirmed by staff.
-- No automatic email or WhatsApp notifications: staff share documents through prepared WhatsApp messages and links.
+- Account verification and password-reset email flows exist; local Mailpit catches them. Real delivery requires a
+  configured SMTP provider. WhatsApp sharing uses prepared messages and links rather than automatic sending.
 - Sessions, rate limits and assistant conversations are held in memory, which suits a single server.
-- CI builds and tests every change, but deploying to the droplet is still done by hand over SSH; publishing images and
+- The CI workflow defines checks for pull requests and pushes to `main`; a passing hosted run and required branch
+  checks must be verified separately. Deployment to the droplet is manual over SSH; publishing images and
   automated deployment are planned ([CI/CD](docs/operations/CI_CD_PIPELINE.md)).
 
 ## Credits
