@@ -4,8 +4,10 @@ Status of the 7 October 2026 website review, as of 9 October 2026, on branch `fe
 below was implemented and verified on a local Docker stack. **Nothing has been deployed**: the preview droplet and
 sl-tours.com still run older code.
 
-> **Update, 15 October 2026:** this code now runs on the preview droplet and is on GitHub, where CI runs on every push.
-> sl-tours.com is unchanged. The release assessment below is kept as written on 9 October.
+> **Update, 15 October 2026:** the preview droplet now serves https://sltours.tlokwadigital.com for client review,
+> but with an earlier build: the redirect and 404 checks in `tools/smoke/routes.sh` still fail there. This code is on
+> GitHub, where CI runs on every push. sl-tours.com is unchanged. The release assessment below is kept as written on
+> 9 October.
 
 How each status was established:
 

@@ -7,8 +7,10 @@ messages and hand-made invoices with one system.
 - **Back office:** staff handle enquiries, bookings, quotations and invoices.
 - **Driver portal:** drivers record the condition of each vehicle before and after a trip.
 
-> **Status:** a working preview, deployed on a DigitalOcean droplet and not yet serving SL Tours' public domain
-> ([what running it there taught us](#deployment-and-lessons-learned)). Launch waits on business decisions by SL Tours
+> **Status:** live for client review at **[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/explore)**,
+> running on a DigitalOcean droplet and tunnelled through the Tlokwa Digital domain
+> ([what running it there taught us](#deployment-and-lessons-learned)). It does not yet serve SL Tours' public domain,
+> sl-tours.com. Launch waits on business decisions by SL Tours
 > (live rates, booking terms, an email provider, a privacy review); see
 > [Owner decisions](docs/operations/OWNER_DECISIONS.md) and [Release readiness](docs/operations/RELEASE_READINESS.md).
 > This repository is a **curated snapshot**. Client-identifying details (a customer's name, the business street address
@@ -139,18 +141,82 @@ Browser journeys (`tools/journeys`) and a route smoke test (`tools/smoke/routes.
 
 ## Deployment and lessons learned
 
-The preview runs on a single DigitalOcean droplet (1 vCPU, 1 GB RAM, Frankfurt) with the same Docker Compose stack as
-local development: Nginx, the Spring Boot API and PostgreSQL. A small real server exposed problems a laptop never
-shows. Each is written up in the [learning log](docs/learning/LOG.md):
+The preview is live for SL Tours to review at
+[sltours.tlokwadigital.com](https://sltours.tlokwadigital.com/explore). It runs on a single DigitalOcean droplet
+(1 vCPU, 1 GB RAM, Frankfurt) with the same Docker Compose stack as local development, and reaches the internet
+through a Cloudflare Tunnel on the Tlokwa Digital domain:
 
-- **1 GB is not enough to compile Java and Node at once.** The first build on the droplet stalled with the kernel
-  swapping (`kswapd0` at about 22% CPU). Building one service at a time works around it; the planned fix is for CI to
-  build the images and the server only to pull them ([ADR-007](docs/architecture/ADR/ADR-007-build-images-in-ci.md)).
-- **Java sizes itself from the host unless told otherwise.** The kernel killed the API for running out of memory, so
-  it now has an explicit heap and a container memory limit, so an overrun restarts only the API container
-  (`docker-compose.yml`).
-- **Small servers start slowly.** The API took 79 seconds to start on the droplet, so its health check allows a
-  three-minute start period.
+```
+Browser ──HTTPS──▶ Cloudflare edge ──tunnel──▶ cloudflared (systemd service on the droplet)
+        ──HTTP──▶ 127.0.0.1:8080 web (Nginx) ──▶ api (Spring Boot) ──▶ postgres
+```
+
+The preview runs an earlier build than this snapshot. The redirects and real 404 pages described below are not
+deployed there yet; `tools/smoke/routes.sh https://sltours.tlokwadigital.com true` reports them as failing.
+
+### Problem 1: the build froze
+
+**What happened.** `docker compose build` compiles the API with Maven and the frontend with Node at the same time. On
+1 GB of RAM the droplet ran out of memory: `top` showed `kswapd0`, the kernel process that frees memory, at about 22%
+CPU, and the build stalled.
+
+**How it was solved.** The build was split so that only one compiler runs at a time:
+
+```bash
+docker compose build api    # Java and Maven first
+docker compose build web    # then Node and Vite
+docker compose up -d
+```
+
+The longer-term plan is for CI to build the images and the server only to pull them, so the server never compiles
+([ADR-007](docs/architecture/ADR/ADR-007-build-images-in-ci.md)).
+
+### Problem 2: the API was killed after running for a while
+
+**What happened.** Once built, the stack ran, then failed again. On 8 October the kernel's out-of-memory killer
+stopped the API (exit code 137). There was no restart policy, so it stayed down for a day. Without limits, Java sizes
+its heap and its other memory pools from the host's total RAM, not from what PostgreSQL and Nginx leave free.
+
+**How it was solved.** In three layers:
+
+1. **Swap on the droplet.** Swap is disk space the kernel uses as overflow memory. A short spike, such as a build or
+   the API starting, now slows the server down instead of getting a process killed.
+2. **A fixed memory budget for the API** in [docker-compose.yml](docker-compose.yml):
+
+   | Setting | Why |
+   |---|---|
+   | `mem_limit: 640m` | Caps the container, so an overrun kills and restarts the API alone, never PostgreSQL |
+   | `-Xmx256m` | A fixed heap instead of one sized from the host's RAM |
+   | `-XX:MaxMetaspaceSize=192m` `-XX:ReservedCodeCacheSize=64m` `-XX:MaxDirectMemorySize=64m` `-Xss512k` | Caps the memory Java uses outside the heap: class data, compiled code, buffers and thread stacks |
+   | `-XX:+UseSerialGC` | The garbage collector with the least memory overhead; it suits one vCPU and a small heap |
+   | `-XX:+ExitOnOutOfMemoryError` | Java exits on running out of memory instead of carrying on half-broken, so Docker restarts it cleanly |
+
+3. **Automatic recovery.** Every service has `restart: unless-stopped`, so it comes back after a crash, an
+   out-of-memory kill or a reboot. The API's health check allows a 180-second start period because startup took 79
+   seconds on the droplet.
+
+To check memory on the server:
+
+```bash
+free -h && swapon --show                              # host memory and swap
+docker stats --no-stream                              # each container against its limit
+docker inspect -f '{{.State.OOMKilled}} {{.State.ExitCode}}' <api-container>   # killed for memory? (true 137)
+```
+
+### Problem 3: HTTPS on a domain for client review
+
+**How it was solved.** `cloudflared` runs on the droplet as a systemd service. It opens an outbound connection to
+Cloudflare, so the website needs no inbound port. Cloudflare serves HTTPS for `sltours.tlokwadigital.com` and the
+tunnel forwards each request to `http://127.0.0.1:8080`, the `web` container.
+
+**What then broke: sign-in.** Behind the tunnel the API receives plain HTTP, so a sign-in or form POST from
+`https://sltours.tlokwadigital.com` looks cross-origin and is rejected. Adding that exact origin to
+`CORS_ALLOWED_ORIGINS` fixed sign-in.
+
+### Other lessons
+
+Each is written up in the [learning log](docs/learning/LOG.md).
+
 - **Dependencies are part of the attack surface.** The first security scan found three CRITICAL Tomcat flaws, two of
   them authentication bypasses, in libraries the code never names directly. They were fixed by upgrading and pinning
   versions. A finding is accepted in `.trivyignore` only when the code cannot reach it, with a reason and an expiry
